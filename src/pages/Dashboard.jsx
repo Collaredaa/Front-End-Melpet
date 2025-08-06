@@ -4,6 +4,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 
 const ItemType = { CARD: "card" };
 
+// Modal de escolha de groomer
 const GroomerModal = ({ onSelect, onClose }) => (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div className="bg-white p-6 rounded-xl shadow-md text-center">
@@ -17,6 +18,7 @@ const GroomerModal = ({ onSelect, onClose }) => (
   </div>
 );
 
+// Modal com informações completas
 const PetDetailsModal = ({ pet, onClose }) => {
   if (!pet) return null;
 
@@ -39,6 +41,7 @@ const PetDetailsModal = ({ pet, onClose }) => {
   );
 };
 
+// Card de pet individual
 const Card = ({ pet, onEditGroomer, onShowDetails }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemType.CARD,
@@ -56,6 +59,7 @@ const Card = ({ pet, onEditGroomer, onShowDetails }) => {
     >
       <p className="font-medium">{pet.name}</p>
       <p className="text-sm text-gray-500 mb-2">Groomer: {pet.groomer || "-"}</p>
+
       {pet.status === "Aguardando" && (
         <button
           onClick={(e) => {
@@ -71,6 +75,7 @@ const Card = ({ pet, onEditGroomer, onShowDetails }) => {
   );
 };
 
+// Coluna de status
 const Column = ({ title, pets, onDropCard, onEditGroomer, onShowDetails }) => {
   const [, drop] = useDrop(() => ({
     accept: ItemType.CARD,
@@ -89,6 +94,7 @@ const Column = ({ title, pets, onDropCard, onEditGroomer, onShowDetails }) => {
   );
 };
 
+// Dashboard principal
 export default function Dashboard() {
   const [modalPetId, setModalPetId] = useState(null);
   const [showDetailsId, setShowDetailsId] = useState(null);
@@ -128,11 +134,7 @@ export default function Dashboard() {
 
     if (pet.status === "Aguardando" && newStatus === "Iniciado") {
       setModalPetId(id);
-    } else if (pet.status === "Aguardando" && newStatus === "Finalizado") {
-      setPets((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
-      );
-    } else if (pet.status !== "Aguardando") {
+    } else {
       setPets((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
       );
