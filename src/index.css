@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* fundo com patinhas discretas */
+.paw-bg {
+  background-image:
+    radial-gradient(circle at 25px 25px, rgba(30,27,75,0.04) 2px, transparent 2px),
+    radial-gradient(circle at 75px 75px, rgba(30,27,75,0.04) 2px, transparent 2px);
+  background-size: 100px 100px;
+}
+
+/* gradiente clarinho para as páginas */
+.page-gradient {
+  background: linear-gradient(180deg, #FFF7F9 0%, #FFFFFF 100%);
+}
