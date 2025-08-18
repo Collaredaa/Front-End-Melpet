@@ -8,20 +8,14 @@ import {
   iniciarCheckin,   // POST /checkins/start
   finalizarCheckin, // POST /checkins/end
 } from "../api/api";
-import Logo from "../assets/melpetlogo.jpg"; // ajuste se necessário
+import Logo from "../assets/melpetlogo.jpg";
 
 const ItemType = { CARD: "card" };
 
 /* ---------------- Util ---------------- */
 function formatDateTime(dt) {
-  try {
-    const d = new Date(dt);
-    return d.toLocaleString();
-  } catch {
-    return String(dt);
-  }
+  try { return new Date(dt).toLocaleString(); } catch { return String(dt); }
 }
-
 function normalizaGroomers(lista) {
   return (Array.isArray(lista) ? lista : [])
     .map((g) => ({
@@ -30,7 +24,6 @@ function normalizaGroomers(lista) {
     }))
     .filter((g) => Number.isFinite(g.id));
 }
-
 function PriorityBadge({ value }) {
   const v = (value || "").toString().toUpperCase();
   const map = {
@@ -38,6 +31,7 @@ function PriorityBadge({ value }) {
     MEDIA: "bg-amber-100 text-amber-700 border-amber-200",
     MÉDIA: "bg-amber-100 text-amber-700 border-amber-200",
     BAIXA: "bg-slate-100 text-slate-700 border-slate-200",
+    NORMAL: "bg-slate-100 text-slate-700 border-slate-200",
   };
   const cls = map[v] || "bg-slate-100 text-slate-700 border-slate-200";
   if (!v) return null;
@@ -103,19 +97,30 @@ const PetDetailsModal = ({ checkin, onClose }) => {
 };
 
 /* ---------------- Card & Coluna ---------------- */
-const Card = ({ c, onEditGroomer, onShowDetails }) => {
+/** Card vira source do drag; a coluna devolve status e o card decide o que fazer */
+const Card = ({ c, onEditGroomer, onShowDetails, onDropCard }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemType.CARD,
-    item: { id: c.idCheckin },
+    item: {
+      id: Number(c.idCheckin),
+      status: (c.status || "AGUARDANDO").toString().toUpperCase(),
+    },
+    // >>> chave: quando soltar, pegue o dropResult da coluna e chame o handler
+    end: (item, monitor) => {
+      const result = monitor.getDropResult();
+      if (result && result.statusKey) {
+        onDropCard(item.id, result.statusKey);
+      }
+    },
     collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }));
+  }), [c, onDropCard]);
 
-  // chips de serviços
   const services = (c.servicos ?? [])
     .map((s) => s.nomeService ?? s.nomeServico ?? s.nome)
     .filter(Boolean);
 
   const hasObs = Boolean(c.observacoes && String(c.observacoes).trim().length > 0);
+  const raca = c.racaNome ?? c.nomeRaca ?? c.racaName ?? "";
 
   return (
     <div
@@ -125,7 +130,6 @@ const Card = ({ c, onEditGroomer, onShowDetails }) => {
         isDragging ? "opacity-50" : "opacity-100"
       }`}
     >
-      {/* Ícone de observação quando houver texto */}
       {hasObs && (
         <span title={c.observacoes} className="absolute top-2 right-2 inline-flex">
           <svg viewBox="0 0 20 20" className="w-5 h-5 text-amber-500">
@@ -138,17 +142,21 @@ const Card = ({ c, onEditGroomer, onShowDetails }) => {
       )}
 
       <div className="flex items-center justify-between pr-7">
-        <div className="flex items-center">
-          <p className="font-semibold text-slate-900">{c.petNome ?? "-"}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-[20px] font-semibold text-slate-900">
+            {c.petNome ?? "-"}
+          </p>
+          {raca && (
+            <span className="text-sm text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+              {raca}
+            </span>
+          )}
           <PriorityBadge value={c.priority} />
         </div>
 
         {c.status === "AGUARDANDO" && (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditGroomer(c.idCheckin);
-            }}
+            onClick={(e) => { e.stopPropagation(); onEditGroomer(c.idCheckin); }}
             className="text-xs text-indigo-700 hover:underline"
           >
             Alterar Groomer
@@ -156,14 +164,14 @@ const Card = ({ c, onEditGroomer, onShowDetails }) => {
         )}
       </div>
 
-      <p className="text-[12px] text-gray-500 mt-0.5">Groomer: {c.groomerNome ?? "-"}</p>
+      <p className="text-[23px] text-gray-500 mt-0.5">Groomer: {c.groomerNome ?? "-"}</p>
 
       {services.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {services.map((s, i) => (
             <span
               key={`${s}-${i}`}
-              className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200"
+              className="text-[17px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200"
             >
               {s}
             </span>
@@ -175,24 +183,33 @@ const Card = ({ c, onEditGroomer, onShowDetails }) => {
 };
 
 const Column = ({ titulo, statusKey, itens, onDropCard, onEditGroomer, onShowDetails }) => {
-  const [, drop] = useDrop(() => ({
+  const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ItemType.CARD,
-    drop: (item) => onDropCard(item.id, statusKey),
-  }));
+    // retorna o resultado do drop para o "end" do Card
+    drop: () => ({ statusKey }),
+    // opcional: não deixa dropar na mesma coluna
+    canDrop: (item) => (item?.status || "") !== statusKey,
+    collect: (monitor) => ({
+      isOver: monitor.isOver({ shallow: true }),
+      canDrop: monitor.canDrop(),
+    }),
+  }), [statusKey]);
 
   return (
     <div className="flex-1 px-2">
       <h2 className="text-lg font-bold text-center mb-3 text-indigo-900">{titulo}</h2>
       <div
         ref={drop}
-        className="bg-slate-50/80 border border-slate-100 p-4 min-h-[300px] rounded-2xl"
+        className={`bg-slate-50/80 border border-slate-100 p-4 min-h-[300px] rounded-2xl transition
+          ${isOver && canDrop ? "ring-2 ring-rose-300" : ""}`}
       >
         {itens.map((c) => (
           <Card
             key={c.idCheckin}
             c={c}
             onEditGroomer={onEditGroomer}
-            onShowDetails={onShowDetails}
+            onShowDetails={setShowDetailsId => onShowDetails(setShowDetailsId)}
+            onDropCard={onDropCard}   // <<< passa o handler para o Card
           />
         ))}
         {itens.length === 0 && (
@@ -206,14 +223,15 @@ const Column = ({ titulo, statusKey, itens, onDropCard, onEditGroomer, onShowDet
 /* ---------------- Página ---------------- */
 export default function Dashboard() {
   const [checkins, setCheckins] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [erro, setErro] = useState("");
   const [modalCheckinId, setModalCheckinId] = useState(null);
   const [groomers, setGroomers] = useState([]);
   const [showDetailsId, setShowDetailsId] = useState(null);
 
-  const carregar = async () => {
-    setLoading(true);
+  const carregar = async (silent = false) => {
+    if (silent) setRefreshing(true);
     setErro("");
     try {
       const lista = await listarCheckinsHoje();
@@ -222,7 +240,8 @@ export default function Dashboard() {
       setErro(e.message || "Falha ao carregar check-ins.");
       console.error(e);
     } finally {
-      setLoading(false);
+      if (silent) setRefreshing(false);
+      setInitialLoading(false);
     }
   };
 
@@ -237,114 +256,157 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    carregar();
+    carregar(false);
     carregarGroomers();
-    const id = setInterval(carregar, 15000); // polling leve
+    const id = setInterval(() => carregar(true), 15000);
     return () => clearInterval(id);
   }, []);
 
+  // Ordenação por prioridade e, no empate, mais antigo primeiro
   const grupos = useMemo(() => {
+    const prioRank = (p) => {
+      const v = (p ?? "").toString().toUpperCase();
+      if (v === "ALTA") return 0;
+      if (v === "MEDIA" || v === "MÉDIA") return 1;
+      if (v === "BAIXA" || v === "NORMAL" || v === "") return 2;
+      return 3;
+    };
+    const safeTs = (dt) => {
+      const t = dt ? new Date(dt).getTime() : Number.MAX_SAFE_INTEGER;
+      return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+    };
+
     const by = { AGUARDANDO: [], INICIADO: [], FINALIZADO: [] };
     for (const c of checkins) {
-      const s = c.status || "AGUARDANDO";
+      const s = (c.status || "AGUARDANDO").toString().toUpperCase();
       (by[s] ?? by.AGUARDANDO).push(c);
+    }
+    for (const k of Object.keys(by)) {
+      by[k].sort((a, b) =>
+        prioRank(a.priority) - prioRank(b.priority) ||
+        safeTs(a.dataHoraCriacao) - safeTs(b.dataHoraCriacao) ||
+        (Number(a.idCheckin) || 0) - (Number(b.idCheckin) || 0)
+      );
     }
     return by;
   }, [checkins]);
 
-  const handleDrop = async (id, newStatusKey) => {
-    const item = checkins.find((c) => c.idCheckin === id);
-    if (!item || item.status === newStatusKey) return;
+  // helper para atualizar localmente
+  const patchCheckin = (id, patch) => {
+    setCheckins((prev) =>
+      prev.map((c) =>
+        Number(c.idCheckin) === Number(id) ? { ...c, ...patch } : c
+      )
+    );
+  };
+
+  const handleDrop = async (rawId, rawTargetKey) => {
+    const id = Number(rawId);
+    const target = (rawTargetKey || "").toString().toUpperCase();
+
+    const item = checkins.find((c) => Number(c.idCheckin) === id);
+    if (!item) return;
+
+    const current = (item.status || "AGUARDANDO").toString().toUpperCase();
+    if (current === target) return;
 
     // AGUARDANDO -> INICIADO (exige groomer)
-    if (item.status === "AGUARDANDO" && newStatusKey === "INICIADO") {
+    if (current === "AGUARDANDO" && target === "INICIADO") {
       setModalCheckinId(id);
       return;
     }
+
     // INICIADO -> FINALIZADO
-    if (item.status === "INICIADO" && newStatusKey === "FINALIZADO") {
+    if (current === "INICIADO" && target === "FINALIZADO") {
       try {
         const atualizado = await finalizarCheckin({ idCheckIn: id });
-        setCheckins((prev) =>
-          prev.map((c) => (c.idCheckin === id ? atualizado : c))
-        );
+        if (atualizado && atualizado.status) {
+          patchCheckin(id, atualizado);
+        } else {
+          patchCheckin(id, { status: "FINALIZADO" });
+        }
       } catch (e) {
         alert(`Erro ao finalizar: ${e.message || e}`);
       }
+      return;
     }
+
+    // Outros caminhos (se o back suportar)
+    patchCheckin(id, { status: target });
   };
 
   const handleSelectGroomer = async (g) => {
     if (!modalCheckinId || !g) return;
     try {
       const atualizado = await iniciarCheckin({
-        idCheckIn: modalCheckinId,
-        idGroomer: g.id,
+        idCheckIn: Number(modalCheckinId),
+        idGroomer: Number(g.id),
       });
-      setCheckins((prev) =>
-        prev.map((c) => (c.idCheckin === modalCheckinId ? atualizado : c))
-      );
+      if (atualizado && atualizado.status) {
+        patchCheckin(modalCheckinId, atualizado);
+      } else {
+        patchCheckin(modalCheckinId, {
+          status: "INICIADO",
+          groomerNome: g.nome,
+          idGroomer: g.id,
+        });
+      }
       setModalCheckinId(null);
     } catch (e) {
       alert(`Erro ao iniciar: ${e.message || e}`);
     }
   };
 
-  const handleEditGroomer = (id) => {
-    setModalCheckinId(id);
-  };
-
-  const selected = checkins.find((c) => c.idCheckin === showDetailsId);
+  const handleEditGroomer = (id) => setModalCheckinId(Number(id));
+  const selected = checkins.find((c) => Number(c.idCheckin) === Number(showDetailsId));
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white p-6">
-        {/* Cabeçalho brand */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <img src={Logo} alt="Mel Pet Spa" className="w-9 h-9 rounded-full object-cover" />
             <h1 className="text-2xl font-bold text-indigo-900">Painel de Serviços</h1>
           </div>
+
           <button
-            onClick={carregar}
-            className="px-3 py-2 rounded-xl border border-slate-200 text-sm hover:bg-white bg-slate-50"
+            onClick={() => carregar(true)}
+            className="px-3 py-2 rounded-xl border border-slate-200 text-sm hover:bg-white bg-slate-50 inline-flex items-center gap-2"
+            disabled={refreshing}
           >
-            Atualizar
+            {refreshing && <span className="inline-block w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />}
+            {refreshing ? "Atualizando…" : "Atualizar"}
           </button>
         </div>
 
         {erro && <div className="mb-4 text-sm text-red-600">Erro: {erro}</div>}
 
-        {loading ? (
-          <div className="text-gray-500">Carregando…</div>
-        ) : (
-          <div className="flex gap-4">
-            <Column
-              titulo="Aguardando"
-              statusKey="AGUARDANDO"
-              itens={grupos.AGUARDANDO}
-              onDropCard={handleDrop}
-              onEditGroomer={handleEditGroomer}
-              onShowDetails={setShowDetailsId}
-            />
-            <Column
-              titulo="Iniciado"
-              statusKey="INICIADO"
-              itens={grupos.INICIADO}
-              onDropCard={handleDrop}
-              onEditGroomer={handleEditGroomer}
-              onShowDetails={setShowDetailsId}
-            />
-            <Column
-              titulo="Finalizado"
-              statusKey="FINALIZADO"
-              itens={grupos.FINALIZADO}
-              onDropCard={handleDrop}
-              onEditGroomer={handleEditGroomer}
-              onShowDetails={setShowDetailsId}
-            />
-          </div>
-        )}
+        <div className={`flex gap-4 transition-opacity ${initialLoading ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+          <Column
+            titulo="Aguardando"
+            statusKey="AGUARDANDO"
+            itens={grupos.AGUARDANDO}
+            onDropCard={handleDrop}
+            onEditGroomer={handleEditGroomer}
+            onShowDetails={setShowDetailsId}
+          />
+          <Column
+            titulo="Iniciado"
+            statusKey="INICIADO"
+            itens={grupos.INICIADO}
+            onDropCard={handleDrop}
+            onEditGroomer={handleEditGroomer}
+            onShowDetails={setShowDetailsId}
+          />
+          <Column
+            titulo="Finalizado"
+            statusKey="FINALIZADO"
+            itens={grupos.FINALIZADO}
+            onDropCard={handleDrop}
+            onEditGroomer={handleEditGroomer}
+            onShowDetails={setShowDetailsId}
+          />
+        </div>
 
         {modalCheckinId && (
           <GroomerModal

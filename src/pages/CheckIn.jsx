@@ -14,8 +14,8 @@ export default function CheckIn() {
 
   // raças
   const [racasDisponiveis, setRacasDisponiveis] = useState([]);
-  const [raca, setRaca] = useState("");          // id selecionado
-  const [racaQuery, setRacaQuery] = useState(""); // texto digitado
+  const [raca, setRaca] = useState("");          // id da raça selecionada
+  const [racaQuery, setRacaQuery] = useState(""); // texto digitado no combobox
   const [showRacaSug, setShowRacaSug] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -27,11 +27,17 @@ export default function CheckIn() {
   const debounceRef = useRef(null);
   const cancelSourceRef = useRef(null);
 
+  // guarda idRaca quando a espécie for trocada a partir de uma sugestão
+  const preselectRacaRef = useRef(null);
+
+  // >>> flag para NÃO limpar selectedPet quando o petName é alterado pela seleção
+  const suppressClearRef = useRef(false);
+
   // Helper: carrega raças por espécie e (opcional) define pré-selecionada
   const fetchRacasBySpecie = async (specie, preselectIdRaca) => {
     try {
       const { data } = await axios.get(
-        "http://localhost:8081/api/pets/search-by-specie",
+        "http://56.124.52.218:8081/api/pets/search-by-specie",
         { params: { specie } }
       );
       const lista = Array.isArray(data) ? data : [];
@@ -65,18 +71,28 @@ export default function CheckIn() {
     let specie = "";
     if (isDog) specie = "CACHORRO";
     if (isCat) specie = "GATO";
-    if (specie) {
-      fetchRacasBySpecie(specie);
-    } else {
+
+    if (!specie) {
       setRacasDisponiveis([]);
       setRaca("");
       setRacaQuery("");
+      return;
     }
+
+    const id = preselectRacaRef.current;
+    preselectRacaRef.current = null;
+    fetchRacasBySpecie(specie, id);
   }, [isDog, isCat]);
 
   // Autocomplete de PET (nome) — debounce 300ms
   useEffect(() => {
-    setSelectedPet(null);
+    // Só limpamos a seleção se o usuário realmente digitou (não quando veio de um pick)
+    if (!suppressClearRef.current) {
+      setSelectedPet(null);
+    }
+    // sempre resetamos o flag após processar esta mudança de petName
+    const skipSearch = suppressClearRef.current;
+    suppressClearRef.current = false;
 
     if (cancelSourceRef.current) {
       cancelSourceRef.current.cancel("cancel previous search");
@@ -90,13 +106,19 @@ export default function CheckIn() {
       return;
     }
 
+    // Se o texto veio de uma seleção, não precisamos buscar novamente
+    if (skipSearch) {
+      setShowSug(false);
+      return;
+    }
+
     debounceRef.current = setTimeout(async () => {
       try {
         const source = axios.CancelToken.source();
         cancelSourceRef.current = source;
 
         const { data } = await axios.get(
-          "http://localhost:8081/api/pets/search/name",
+          "http://56.124.52.218:8081/api/pets/search/name",
           { params: { nomePet: query }, cancelToken: source.token }
         );
         setSuggestions(Array.isArray(data) ? data : []);
@@ -118,7 +140,10 @@ export default function CheckIn() {
   }, [petName]);
 
   // Seleciona um pet existente
-  const handlePickSuggestion = async (p) => {
+  const handlePickSuggestion = (p) => {
+    // indica que a próxima mudança de petName vem de um pick (não limpar nem buscar)
+    suppressClearRef.current = true;
+
     setSelectedPet(p);
     setPetName(p.nomePet ?? "");
     setTutorName(p.nomeTutor ?? "");
@@ -126,11 +151,17 @@ export default function CheckIn() {
     const specie = (p.specie ?? p.especie ?? "").toString().toUpperCase();
     const isDogSel = specie === "CACHORRO";
     const isCatSel = specie === "GATO";
+
+    // guarda a raça para o effect usar
+    preselectRacaRef.current = p.idRaca ?? p.idRace;
+
+    // já preenche localmente para não depender do fetch
+    setRaca(String(p.idRaca ?? p.idRace ?? ""));
+    setRacaQuery(p.nomeRaca ?? p.racaNome ?? p.racaName ?? "");
+
     setIsDog(isDogSel);
     setIsCat(isCatSel);
 
-    const idRaca = p.idRaca ?? p.idRace;
-    await fetchRacasBySpecie(specie, idRaca);
     setShowSug(false);
   };
 
@@ -162,6 +193,7 @@ export default function CheckIn() {
           racasDisponiveis.find(
             (r) => Number(r.idRace ?? r.idRaca) === Number(selectedPet.idRaca)
           )?.nameRace ??
+          racaQuery ?? // fallback ao que já está no input
           "";
 
         const dataToSave = {
@@ -169,7 +201,7 @@ export default function CheckIn() {
           nomePet: selectedPet.nomePet,
           nomeTutor: selectedPet.nomeTutor,
           specie: selectedPet.specie,
-          idRaca: selectedPet.idRaca ?? selectedPet.idRace,
+          idRaca: (selectedPet.idRaca ?? selectedPet.idRace ?? raca) ?? null,
           racaName: racaNome,
         };
         localStorage.setItem("checkinData", JSON.stringify(dataToSave));
@@ -198,7 +230,7 @@ export default function CheckIn() {
       };
 
       const response = await axios.post(
-        "http://localhost:8081/api/pets/create",
+        "http://56.124.52.218:8081/api/pets/create",
         petDTO
       );
       const createdPet = response.data;
@@ -246,6 +278,7 @@ export default function CheckIn() {
               placeholder="Nome do Pet"
               value={petName}
               onChange={(e) => {
+                suppressClearRef.current = false; // mudança por digitação
                 setPetName(e.target.value);
                 setShowSug(true);
               }}
@@ -267,9 +300,7 @@ export default function CheckIn() {
                     <div className="text-xs text-gray-600">
                       Tutor: {p.nomeTutor ?? "-"} • Raça:{" "}
                       {p.nomeRaca ?? p.racaNome ?? "-"} • Espécie:{" "}
-                      {(p.specie ?? p.especie ?? "-")
-                        .toString()
-                        .toUpperCase()}
+                      {(p.specie ?? p.especie ?? "-").toString().toUpperCase()}
                     </div>
                   </button>
                 ))}
@@ -323,8 +354,7 @@ export default function CheckIn() {
               onChange={(e) => {
                 setRacaQuery(e.target.value);
                 setShowRacaSug(true);
-                // Se o usuário alterar o texto, “desmarca” a raça até selecionar
-                setRaca("");
+                setRaca(""); // ao digitar, desmarca até selecionar
               }}
               onFocus={() => racasDisponiveis.length && setShowRacaSug(true)}
               onBlur={() => setTimeout(() => setShowRacaSug(false), 120)}

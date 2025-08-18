@@ -8,7 +8,7 @@ export function PetSearch() {
 
   const handleSearch = async () => {
     try {
-      const response = await axios.get(`http://localhost:8081/pets/search`, {
+      const response = await axios.get(`http://56.124.52.218:8081/pets/search`, {
         params: { nomePet },
       });
       setPets(response.data);
