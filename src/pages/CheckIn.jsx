@@ -37,7 +37,7 @@ export default function CheckIn() {
   const fetchRacasBySpecie = async (specie, preselectIdRaca) => {
     try {
       const { data } = await axios.get(
-        "http://localhost:8081/api/pets/search-by-specie",
+        "http://56.124.52.218:8081/api/pets/search-by-specie",
         { params: { specie } }
       );
       const lista = Array.isArray(data) ? data : [];
@@ -118,7 +118,7 @@ export default function CheckIn() {
         cancelSourceRef.current = source;
 
         const { data } = await axios.get(
-          "http://localhost:8081/api/pets/search/name",
+          "http://56.124.52.218:8081/api/pets/search/name",
           { params: { nomePet: query }, cancelToken: source.token }
         );
         setSuggestions(Array.isArray(data) ? data : []);
@@ -230,7 +230,7 @@ export default function CheckIn() {
       };
 
       const response = await axios.post(
-        "http://localhost:8081/api/pets/create",
+        "http://56.124.52.218:8081/api/pets/create",
         petDTO
       );
       const createdPet = response.data;

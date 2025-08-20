@@ -35,7 +35,7 @@ export default function AttendancesPage() {
       // backend espera dd/MM/yyyy
       const dataBR = toBR(d);
 
-      const resp = await axios.get("http://localhost:8081/checkins/buscar", {
+      const resp = await axios.get("http://56.124.52.218:8081/checkins/buscar", {
         params: { data: dataBR },
       });
 
