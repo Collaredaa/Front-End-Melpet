@@ -1,6 +1,6 @@
 // src/pages/CheckIn.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // ✅ adicionado Link
 import axios from "axios";
 import Logo from "../assets/melpetlogo.jpg";
 
@@ -37,7 +37,7 @@ export default function CheckIn() {
   const fetchRacasBySpecie = async (specie, preselectIdRaca) => {
     try {
       const { data } = await axios.get(
-        "http://56.124.52.218:8081/api/pets/search-by-specie",
+        "http://localhost:8081/api/pets/search-by-specie",
         { params: { specie } }
       );
       const lista = Array.isArray(data) ? data : [];
@@ -118,7 +118,7 @@ export default function CheckIn() {
         cancelSourceRef.current = source;
 
         const { data } = await axios.get(
-          "http://56.124.52.218:8081/api/pets/search/name",
+          "http://localhost:8081/api/pets/search/name",
           { params: { nomePet: query }, cancelToken: source.token }
         );
         setSuggestions(Array.isArray(data) ? data : []);
@@ -230,7 +230,7 @@ export default function CheckIn() {
       };
 
       const response = await axios.post(
-        "http://56.124.52.218:8081/api/pets/create",
+        "http://localhost:8081/api/pets/create",
         petDTO
       );
       const createdPet = response.data;
@@ -387,14 +387,23 @@ export default function CheckIn() {
             )}
           </div>
 
-          {/* Botão Próximo */}
-          <button
-            onClick={handleNext}
-            className="w-full py-3 rounded-xl bg-indigo-900 text-white font-semibold hover:brightness-110 transition disabled:opacity-50"
-            disabled={!petName || !tutorName || (!selectedPet && !raca) || loading}
-          >
-            {loading ? "Salvando..." : "Próximo"}
-          </button>
+          {/* Botões lado a lado */}
+          <div className="flex gap-3">
+            <button
+              onClick={handleNext}
+              className="flex-1 py-3 rounded-xl bg-indigo-900 text-white font-semibold hover:brightness-110 transition disabled:opacity-50"
+              disabled={!petName || !tutorName || (!selectedPet && !raca) || loading}
+            >
+              {loading ? "Salvando..." : "Próximo"}
+            </button>
+
+            <Link
+              to="/consulta"
+              className="flex-1 py-3 rounded-xl bg-neutral-900 text-white font-semibold text-center hover:brightness-110 transition"
+            >
+              Consultar atendimentos
+            </Link>
+          </div>
         </div>
       </div>
     </div>

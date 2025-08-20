@@ -2,7 +2,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://56.124.52.218:8081", // sem barra no final para evitar //
+  baseURL: "http://localhost:8081", // sem barra no final para evitar //
   headers: { Accept: "application/json" },
 });
 
