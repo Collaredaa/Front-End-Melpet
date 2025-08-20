@@ -75,9 +75,13 @@ export async function listarServicos() {
     throw new Error(extractErr(err));
   }
 }
+export async function atualizarCheckin(payload) {
+  
+  const { idCheckIn, ...data } = payload;
+  
+  return (await axios.put(`/checkins/${idCheckIn}/editar`, data)).data;
+}
 
-// --------- Groomers ---------
-// agora apontando para /api/groomers (igual ao seu controller)
 export async function listarGroomers() {
   try {
     const { data } = await API.get("api/groomers");
